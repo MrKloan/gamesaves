@@ -1,0 +1,114 @@
+#!/bin/bash
+
+GAMESAVES_PACKAGE="gamesaves"
+GAMESAVES_VERSION="0.1"
+
+GAMESAVES_ORIGIN=$GAMESAVES_ORIGIN
+GAMESAVES_BRANCH=${GAMESAVES_BRANCH:-games}
+
+function print_err {
+    echo $@ >&2
+}
+
+function panic {
+    print_err $@
+    exit 1
+}
+
+function print_version {
+    echo "$GAMESAVES_PACKAGE v$GAMESAVES_VERSION"
+}
+
+function print_usage {
+    print_version
+    echo
+    echo 'Environment variables:'
+    echo '    GAMESAVES_ORIGIN    Git repository URL'
+    echo '    GAMESAVES_BRANCH    Games branch prefix (defaults to "games" if variable is not set)'
+    echo
+    echo "Usage: $GAMESAVES_PACKAGE [options]"
+    echo '    -h    Print this usage message'
+    echo '    -v    Print the script version'
+    echo '    -g    Game name, used for branch management'
+    echo '    -p    Absolute path to the game'"'"'s save folder'
+}
+
+function branchify_game_name {
+    echo "$GAMESAVES_BRANCH/$1"
+}
+
+function parse_options {
+    while getopts "g:p:vh" option; do
+        case $option in 
+            g) GAME=$OPTARG ;;
+            p) GAME_PATH=$OPTARG ;;
+            v)
+                print_version
+                exit 0
+                ;;
+            h)
+                print_usage
+                exit 0
+                ;;
+            \?)
+                print_usage
+                exit 1
+                ;;
+        esac
+    done
+
+    if [ -z "$GAMESAVES_ORIGIN" ]; then
+        panic 'GAMESAVES_ORIGIN variable is not set'
+    elif [ -z "$GAME" ]; then
+        panic 'Option -g requires an argument'
+    elif [ -z "$GAME_PATH" ]; then
+        panic 'Option -p requires an argument'
+    fi
+
+    GAME_BRANCH=$(branchify_game_name $GAME)
+}
+
+function require_git {
+    git version &> /dev/null
+
+    if [ $? -ne 0 ]; then
+        panic 'Git needs to be installed on your system'
+    fi
+}
+
+function git_init {
+    local is_git_repository=$(git rev-parse --is-inside-work-tree 2> /dev/null)
+
+    if [ ! "$is_git_repository" ]; then
+        git init
+    fi
+}
+
+function git_commit {
+    local timestamp=$(date +%s)
+    local commit_msg="$GAMESAVES_PACKAGE saved $GAME state at $timestamp"
+
+    git add .
+    git commit -m "$commit_msg"
+}
+
+function git_push {
+    git push $GAMESAVES_ORIGIN HEAD:$GAME_BRANCH
+}
+
+function main {
+    parse_options $@
+
+    CURRENT_DIRECTORY=$(pwd)
+    cd $GAME_PATH
+
+    git_init
+    git_commit
+    git_push
+
+    cd $CURRENT_DIRECTORY
+    exit 0
+}
+
+require_git
+main $@
