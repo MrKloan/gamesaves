@@ -33,7 +33,7 @@ function print_usage {
     echo '    -p    Absolute path to the game'"'"'s save folder'
 }
 
-function branchify_game_name {
+function branchify_game_name {        
     echo "$GAMESAVES_BRANCH/$1"
 }
 
@@ -81,6 +81,8 @@ function git_init {
 
     if [ ! "$is_git_repository" ]; then
         git init
+        git remote add origin $GAMESAVES_ORIGIN
+        git fetch -p
     fi
 }
 
@@ -89,6 +91,11 @@ function git_commit {
     local commit_msg="$GAMESAVES_PACKAGE saved $GAME state at $timestamp"
 
     git add .
+    git stash
+    
+    git checkout $GAME_BRANCH
+    git stash pop
+
     git commit -m "$commit_msg"
 }
 
